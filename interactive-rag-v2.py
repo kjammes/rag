@@ -4,38 +4,42 @@ from llama_index.llms.ollama import Ollama
 from llama_index.core.node_parser import SentenceSplitter
 import os
 
-# Load local model
+# Load local model (e.g., Ollama)
 llm = Ollama(model="llama3")  # Or change to mistral or tinyllama if you prefer
 
+# Create embeddings using HuggingFace (you can switch to other embeddings if required)
+# Specify to use a local model
+embedding = HuggingFaceEmbedding(model_name="all-MiniLM-L6-v2")  # Ensure it's a local model
+
+# Set up the sentence splitter (to split large texts into manageable chunks)
+sentence_splitter = SentenceSplitter()
+
+# Set the LLM and embedding in the Settings (instead of using ServiceContext)
 Settings.llm = llm
+Settings.embedding = embedding
+Settings.node_parser = sentence_splitter
+Settings.embed_model = embedding
 
 # Load PDFs from directory
 documents = SimpleDirectoryReader("./data").load_data()
-index = VectorStoreIndex.from_documents(documents, service_context=service_context)
 
-# Get query engine with source node metadata
+# Create an index from the loaded documents using the settings
+index = VectorStoreIndex.from_documents(documents)
+
+# Get query engine with source node metadata (set top_k to control how many similar nodes to retrieve)
 query_engine = index.as_query_engine(similarity_top_k=3, response_mode="compact")
 
-print("✅ PDF loaded and indexed. Ask me anything! (type 'exit' to quit)\n")
+# Start querying
+print("✅ PDFs loaded and indexed. Ask me anything! (type 'exit' to quit)")
 
-# Interactive loop
 while True:
     query = input("❓ Your question: ")
-    if query.lower() in ["exit", "quit"]:
-        print("👋 Goodbye!")
+    if query.lower() == 'exit':
         break
 
+    # Get the response for the query from the index
     response = query_engine.query(query)
 
-    # Fuzzy logic: inspect source node scores
-    if hasattr(response, "source_nodes"):
-        relevant_nodes = [n for n in response.source_nodes if n.score and n.score >= 0.7]
-
-        if not relevant_nodes:
-            print("🤔 Sorry, I couldn't find an answer to that.\n")
-            continue
-
-    # Just show the answer, clean
-    answer = response.response if hasattr(response, "response") else str(response)
-    print(f"💡 Answer: {answer}\n")
+    # Print the response
+    print("💡 Answer:", response)
 
